@@ -15,7 +15,16 @@ fn main() {
 
 fn mapper(l: &str)->u64 {
 	let n = l.trim().parse::<u64>().unwrap();
-	fuel(n)
+	rec_fuel(n)
+}
+
+fn rec_fuel(mass: u64) -> u64 {
+	if mass < 9 {
+		0
+	} else {
+		let f = fuel(mass);
+		f + rec_fuel(f)
+	}
 }
 
 fn fuel(mass: u64)-> u64 {mass/3 - 2}
@@ -26,5 +35,13 @@ fn test_fuel() {
 	
 	for (m,f) in test_data.iter() {
 		assert_eq!(fuel(*m),*f);
+	}
+}
+#[test]
+fn test_rrec_fuel() {
+	let test_data = [ (12,2), (14,2), (1969,966), (100756,50346)];
+	
+	for (m,f) in test_data.iter() {
+		assert_eq!(rec_fuel(*m),*f);
 	}
 }
