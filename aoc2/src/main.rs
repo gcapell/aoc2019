@@ -1,5 +1,4 @@
-use std::fs::File;
-use std::io::prelude::*;
+use std::fs::read_to_string;
 
 fn main() {
     let s = filename_to_nums("input2.txt").unwrap();
@@ -19,6 +18,7 @@ fn part2(s: &[u64]) {
     println!("fail");
 }
 
+#[allow(dead_code)]
 fn part1(s: &[u64]) {
     let r = run(&s, 12, 2);
     println!("after: {:?}", r);
@@ -45,6 +45,7 @@ fn sim(a: &mut [u64]) {
                     a[dst as usize] = v;
                 }
             }
+
             99 => return,
             _ => panic!("argh"),
         }
@@ -70,10 +71,8 @@ fn test_sim() {
 }
 
 fn filename_to_nums(s: &str) -> std::io::Result<Vec<u64>> {
-    let mut file = File::open(s)?;
-    let mut s = String::new();
-    file.read_to_string(&mut s)?;
-    Ok(s.split(',')
+    Ok(read_to_string(s)?
+        .split(',')
         .map(|l| l.trim().parse::<u64>().unwrap())
         .collect())
 }
