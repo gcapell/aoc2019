@@ -3,3 +3,6 @@ Cargo.lock
 **/*.rs.bk
 .gitignore
 target
+input*.txt
+.DS_Store
+Cargo.toml
