@@ -1,14 +1,9 @@
 fn main() {
-    let mut count = 0;
-    for j in 382345..=843167 {
-        if valid(j) {
-            count += 1
-        }
-    }
-    println!("{}", count);
+    println!("{}", (382345..=843167i32).filter(valid).count());
 }
 
-fn valid(mut n: i32) -> bool {
+fn valid(orig_n: &i32) -> bool {
+	let mut n = *orig_n;
     let mut dup_count = 0;
     let mut good_dup = false;
     let mut prev = 0;
