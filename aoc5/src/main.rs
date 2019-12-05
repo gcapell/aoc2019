@@ -1,8 +1,222 @@
 use std::collections::VecDeque;
+use std::collections::HashMap;
 use std::fmt;
 
+struct MachineState{
+    mem: Vec<i32>,
+    input: VecDeque<i32>,
+    output: Vec<i32>,
+	instructions: HashMap<i32,Op>,
+}
+enum ParamType {
+	S,
+	D,
+}
+enum NextPC {
+    Relative,
+    Absolute(i32),
+    Exit,
+}
+
+use self::ParamType::*;
+
+type OpFn = fn( m: &mut MachineState, p:&[i32])->NextPC;
+
+struct Op {
+	name: String,
+	params :Vec<ParamType>,
+	run : OpFn,
+}
+
+impl MachineState {
+fn interpret(&mut self)  {
+    let mut pc = 0;
+    loop {
+        let (func, params, size) = self.decode(pc);
+        match func(self, params) {
+            NextPC::Relative => pc += size,
+            NextPC::Absolute(addr) => pc = addr as usize,
+            NextPC::Exit => return,
+        }
+    }
+}
+
+fn decode(&self, pc:usize)-> (OpFn, Vec<i32>, usize){
+	let op = self.mem[pc];
+	let (opcode, modes) = unpack(self.mem[pc]);
+	let i = self.instruction[opcode].unpack();
+	let params = Vec::new();
+	for (n,p) in i.params.enumerate() {
+		let v= self.mem[pc+1+n];
+		match modes[n] {
+			Mode::Position => {
+				params.push(match p {
+					S=>self.mem[v],
+					D=>v}
+				);
+			}
+			Mode::Immediate =>  {
+				params.push(match p {
+					S=>v,
+					D=>panic!()}
+				);
+			}
+		}
+	}
+	return (i.run, params, i.params.len() + 1);
+}
+}
+
 fn main() {
-    let mut mem: Vec<i32> = vec![
+	let mut state = MachineState{
+	    mem: Prog5.to_vec(),
+		input:VecDeque::new(),
+		output: Vec::new(),
+		instructions: HashMap::new(),
+	};
+
+	init_instructions(&mut state.instructions);
+    state.input.push_back(5);
+	state.run();
+    println!("{:?}", state.output);
+}
+
+#[derive(Debug)]
+enum Mode {
+    Position,
+    Immediate,
+}
+
+fn unpack(mut i: i32) -> (i32, Mode, Mode, Mode) {
+    let opcode = ipop(&mut i, 100);
+    let mode0 = pop_mode(&mut i);
+    let mode1 = pop_mode(&mut i);
+    let mode2 = pop_mode(&mut i);
+    (opcode, mode0, mode1, mode2)
+}
+
+fn pop_mode(i: &mut i32) -> Mode {
+    let n = ipop(i, 10);
+    match n {
+        0 => Mode::Position,
+        1 => Mode::Immediate,
+        _ => panic!("bad mode {}", n),
+    }
+}
+
+fn ipop(i: &mut i32, n: i32) -> i32 {
+    let reply = (*i) % n;
+    (*i) /= n;
+    reply
+}
+
+fn bool_to_int(a: bool) -> i32 {
+    if a {
+        1
+    } else {
+        0
+    }
+}
+
+fn init_instructions(i:&mut HashMap<i32,Op>)  {
+	i.insert(1, Op {
+		name: "Add".to_string(),
+		params:vec!(S,S,D),
+		run: |m,p| {
+			if let [s1,s2,d] = p[..] {
+				m.mem[d as usize]=s1+s2;
+	            NextPC::Exit // FIME	
+			} else {
+				 panic!("add params")
+			 }
+		}
+	});
+	i.insert(2, Op {
+		name: "Mul".to_string(),
+		params:vec!(S,S,D),
+		run: |m,p| {
+			if let [s1,s2,d] = p[..] {
+				m.mem[d as usize]=s1*s2;
+	            NextPC::Relative	
+				} else {panic!()}
+		}
+	});
+	i.insert(3, Op {
+		name: "Input".to_string(),
+		params:vec!(D),
+		run: |m,p| {
+			if let [d] = p[..] {
+				m.mem[d as usize]=m.input.pop_front().unwrap();
+	            NextPC::Relative
+				} else {panic!()}
+		}
+	});	
+	i.insert(4, Op {
+		name: "Output".to_string(),
+		params:vec!(S),
+		run: |m,p| {
+			if let [s] = p[..] {
+				m.ouput.push(s);
+	            NextPC::Relative
+				} else {panic!()}
+		}
+	});	 
+	i.insert(5, Op {
+		name: "JumpIfTrue".to_string(),
+		params:vec!(S,D),
+		run: |m,p| {
+			if let [s,d] = p[..] {
+				if s != 0 {
+						NextPC:PAbsolute(d)
+					} else {
+						NextPC::Relative
+					}
+				
+			} else {panic!()}
+		}
+	});	 
+	i.insert(6, Op {
+		name: "JumpIfFalse".to_string(),
+		params:vec!(S,D),
+		run: |m,p| {
+			if let [s,d] = p[..] {
+				if s == 0 {
+					NextPC:PAbsolute(d)
+					} else {
+						NextPC::Relative
+					}
+				
+			} else {panic!()}
+		}
+	});	 
+	i.insert(7, Op {
+		name: "LessThan".to_string(),
+		params:vec!(S,S,D),
+		run: |m,p| {
+			if let [a,b,d] = p[..] {
+				m.mem[d] = bool_to_int(a<b);
+				NextPC::Relative
+			} else {panic!()}
+		}
+	});	 
+	i.insert(8, Op {
+		name: "Equals".to_string(),
+		params:vec!(S,S,D),
+		run: |m,p| {
+			if let [a,b,d] = p[..] {
+				m.mem[d] = bool_to_int(a==b);
+				NextPC::Relative
+			} else {panic!()}
+		}
+	});	  
+	i.insert(9, Op {
+		name: "Exit".to_string(),
+		params:Vec::new(),
+		run: |m,p| { NextPC::Exit },
+	});	  
+}
+
+static Prog5:&[i32] =&[
         3, 225, 1, 225, 6, 6, 1100, 1, 238, 225, 104, 0, 1101, 72, 36, 225, 1101, 87, 26, 225, 2,
         144, 13, 224, 101, -1872, 224, 224, 4, 224, 102, 8, 223, 223, 1001, 224, 2, 224, 1, 223,
         224, 223, 1102, 66, 61, 225, 1102, 25, 49, 224, 101, -1225, 224, 224, 4, 224, 1002, 223, 8,
@@ -38,264 +252,4 @@ fn main() {
         614, 1001, 223, 1, 223, 1108, 226, 677, 224, 102, 2, 223, 223, 1006, 224, 629, 101, 1, 223,
         223, 7, 677, 677, 224, 1002, 223, 2, 223, 1005, 224, 644, 1001, 223, 1, 223, 108, 677, 677,
         224, 102, 2, 223, 223, 1005, 224, 659, 101, 1, 223, 223, 1007, 677, 677, 224, 102, 2, 223,
-        223, 1006, 224, 674, 101, 1, 223, 223, 4, 223, 99, 226,
-    ];
-
-    let mut input: VecDeque<i32> = VecDeque::new();
-    input.push_back(5);
-
-    let output = interpret(&mut mem, &mut input);
-    println!("{:?}", output);
-}
-
-#[derive(Debug)]
-enum Mode {
-    Position,
-    Immediate,
-}
-
-struct Addr {
-    a: i32,
-    m: Mode,
-}
-
-impl Addr {
-    fn fetch(&self, mem: &[i32]) -> i32 {
-        match self.m {
-            Mode::Position => mem[self.a as usize],
-            Mode::Immediate => self.a,
-        }
-    }
-    fn store(&self, mem: &mut [i32], val: i32) {
-        match self.m {
-            Mode::Position => mem[self.a as usize] = val,
-            Mode::Immediate => panic!("store immediate"),
-        }
-    }
-}
-
-impl fmt::Debug for Addr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}{}",
-            match self.m {
-                Mode::Position => "@",
-                Mode::Immediate => "i",
-            },
-            self.a
-        )
-    }
-}
-
-#[derive(Debug)]
-enum Instruction {
-    Add(Addr, Addr, Addr),
-    Mul(Addr, Addr, Addr),
-    Input(Addr),
-    Output(Addr),
-    JumpIfTrue(Addr, Addr),
-    JumpIfFalse(Addr, Addr),
-    LessThan(Addr, Addr, Addr),
-    Equals(Addr, Addr, Addr),
-
-    Exit,
-}
-
-fn interpret(mem: &mut [i32], input: &mut VecDeque<i32>) -> Vec<i32> {
-    let mut output: Vec<i32> = Vec::new();
-    let mut pc = 0;
-    loop {
-        let i = decode(&mem[pc..]);
-        match i.interpret(mem, input, &mut output) {
-            NextPC::Relative(delta) => pc += delta as usize,
-            NextPC::Absolute(addr) => pc = addr as usize,
-            NextPC::Exit => return output,
-        }
-    }
-}
-
-fn unpack(mut i: i32) -> (i32, Mode, Mode, Mode) {
-    let opcode = ipop(&mut i, 100);
-    let mode0 = pop_mode(&mut i);
-    let mode1 = pop_mode(&mut i);
-    let mode2 = pop_mode(&mut i);
-    (opcode, mode0, mode1, mode2)
-}
-
-fn pop_mode(i: &mut i32) -> Mode {
-    let n = ipop(i, 10);
-    match n {
-        0 => Mode::Position,
-        1 => Mode::Immediate,
-        _ => panic!("bad mode {}", n),
-    }
-}
-
-fn ipop(i: &mut i32, n: i32) -> i32 {
-    let reply = (*i) % n;
-    (*i) /= n;
-    reply
-}
-
-fn decode(mem: &[i32]) -> Instruction {
-    let (opcode, mode0, mode1, mode2) = unpack(mem[0]);
-    match opcode {
-        1 => Instruction::Add(
-            Addr {
-                a: mem[1],
-                m: mode0,
-            },
-            Addr {
-                a: mem[2],
-                m: mode1,
-            },
-            Addr {
-                a: mem[3],
-                m: mode2,
-            },
-        ),
-        2 => Instruction::Mul(
-            Addr {
-                a: mem[1],
-                m: mode0,
-            },
-            Addr {
-                a: mem[2],
-                m: mode1,
-            },
-            Addr {
-                a: mem[3],
-                m: mode2,
-            },
-        ),
-        3 => Instruction::Input(Addr {
-            a: mem[1],
-            m: mode0,
-        }),
-        4 => Instruction::Output(Addr {
-            a: mem[1],
-            m: mode0,
-        }),
-        5 => Instruction::JumpIfTrue(
-            Addr {
-                a: mem[1],
-                m: mode0,
-            },
-            Addr {
-                a: mem[2],
-                m: mode1,
-            },
-        ),
-        6 => Instruction::JumpIfFalse(
-            Addr {
-                a: mem[1],
-                m: mode0,
-            },
-            Addr {
-                a: mem[2],
-                m: mode1,
-            },
-        ),
-        7 => Instruction::LessThan(
-            Addr {
-                a: mem[1],
-                m: mode0,
-            },
-            Addr {
-                a: mem[2],
-                m: mode1,
-            },
-            Addr {
-                a: mem[3],
-                m: mode2,
-            },
-        ),
-
-        8 => Instruction::Equals(
-            Addr {
-                a: mem[1],
-                m: mode0,
-            },
-            Addr {
-                a: mem[2],
-                m: mode1,
-            },
-            Addr {
-                a: mem[3],
-                m: mode2,
-            },
-        ),
-
-        99 => Instruction::Exit,
-        _ => panic!("{}", opcode),
-    }
-}
-
-enum NextPC {
-    Relative(i32),
-    Absolute(i32),
-    Exit,
-}
-
-fn bool_to_int(a: bool) -> i32 {
-    if a {
-        1
-    } else {
-        0
-    }
-}
-
-impl Instruction {
-    fn interpret(
-        &self,
-        mem: &mut [i32],
-        input: &mut VecDeque<i32>,
-        output: &mut Vec<i32>,
-    ) -> NextPC {
-        println!("{:?}", self);
-        match self {
-            Instruction::Add(s1, s2, dst) => {
-                let v = s1.fetch(mem) + s2.fetch(mem);
-                dst.store(mem, v);
-                NextPC::Relative(4)
-            }
-            Instruction::Mul(s1, s2, dst) => {
-                let v = s1.fetch(mem) * s2.fetch(mem);
-                dst.store(mem, v);
-                NextPC::Relative(4)
-            }
-            Instruction::Input(dst) => {
-                dst.store(mem, input.pop_front().unwrap());
-                NextPC::Relative(2)
-            }
-            Instruction::Output(src) => {
-                output.push(src.fetch(mem));
-                NextPC::Relative(2)
-            }
-            Instruction::JumpIfTrue(src, dst) => {
-                if src.fetch(mem) != 0 {
-                    NextPC::Absolute(dst.fetch(mem))
-                } else {
-                    NextPC::Relative(3)
-                }
-            }
-            Instruction::JumpIfFalse(src, dst) => {
-                if src.fetch(mem) == 0 {
-                    NextPC::Absolute(dst.fetch(mem))
-                } else {
-                    NextPC::Relative(3)
-                }
-            }
-            Instruction::LessThan(a, b, dst) => {
-                dst.store(mem, bool_to_int(a.fetch(mem) < b.fetch(mem)));
-                NextPC::Relative(4)
-            }
-            Instruction::Equals(a, b, dst) => {
-                dst.store(mem, bool_to_int(a.fetch(mem) == b.fetch(mem)));
-                NextPC::Relative(4)
-            }
-            Instruction::Exit => NextPC::Exit,
-        }
-    }
-}
+        223, 1006, 224, 674, 101, 1, 223, 223, 4, 223, 99, 226];
