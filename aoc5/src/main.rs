@@ -42,7 +42,7 @@ fn main() {
     ];
 
     let mut input: VecDeque<i32> = VecDeque::new();
-    input.push_back(1);
+    input.push_back(5);
 
     let output = interpret(&mut mem, &mut input);
     println!("{:?}", output);
@@ -94,6 +94,10 @@ enum Instruction {
     Mul(Addr, Addr, Addr),
     Input(Addr),
     Output(Addr),
+    JumpIfTrue(Addr, Addr),
+    JumpIfFalse(Addr, Addr),
+    LessThan(Addr, Addr, Addr),
+    Equals(Addr, Addr, Addr),
 
     Exit,
 }
@@ -103,11 +107,11 @@ fn interpret(mem: &mut [i32], input: &mut VecDeque<i32>) -> Vec<i32> {
     let mut pc = 0;
     loop {
         let i = decode(&mem[pc..]);
-        if let Instruction::Exit = i {
-            return output;
+        match i.interpret(mem, input, &mut output) {
+            NextPC::Relative(delta) => pc += delta as usize,
+            NextPC::Absolute(addr) => pc = addr as usize,
+            NextPC::Exit => return output,
         }
-        i.interpret(mem, input, &mut output);
-        pc += i.size();
     }
 }
 
@@ -173,36 +177,125 @@ fn decode(mem: &[i32]) -> Instruction {
             a: mem[1],
             m: mode0,
         }),
+        5 => Instruction::JumpIfTrue(
+            Addr {
+                a: mem[1],
+                m: mode0,
+            },
+            Addr {
+                a: mem[2],
+                m: mode1,
+            },
+        ),
+        6 => Instruction::JumpIfFalse(
+            Addr {
+                a: mem[1],
+                m: mode0,
+            },
+            Addr {
+                a: mem[2],
+                m: mode1,
+            },
+        ),
+        7 => Instruction::LessThan(
+            Addr {
+                a: mem[1],
+                m: mode0,
+            },
+            Addr {
+                a: mem[2],
+                m: mode1,
+            },
+            Addr {
+                a: mem[3],
+                m: mode2,
+            },
+        ),
+
+        8 => Instruction::Equals(
+            Addr {
+                a: mem[1],
+                m: mode0,
+            },
+            Addr {
+                a: mem[2],
+                m: mode1,
+            },
+            Addr {
+                a: mem[3],
+                m: mode2,
+            },
+        ),
+
         99 => Instruction::Exit,
         _ => panic!("{}", opcode),
     }
 }
 
+enum NextPC {
+    Relative(i32),
+    Absolute(i32),
+    Exit,
+}
+
+fn bool_to_int(a: bool) -> i32 {
+    if a {
+        1
+    } else {
+        0
+    }
+}
+
 impl Instruction {
-    fn interpret(&self, mem: &mut [i32], input: &mut VecDeque<i32>, output: &mut Vec<i32>) {
+    fn interpret(
+        &self,
+        mem: &mut [i32],
+        input: &mut VecDeque<i32>,
+        output: &mut Vec<i32>,
+    ) -> NextPC {
         println!("{:?}", self);
         match self {
             Instruction::Add(s1, s2, dst) => {
                 let v = s1.fetch(mem) + s2.fetch(mem);
                 dst.store(mem, v);
+                NextPC::Relative(4)
             }
-
             Instruction::Mul(s1, s2, dst) => {
                 let v = s1.fetch(mem) * s2.fetch(mem);
                 dst.store(mem, v);
+                NextPC::Relative(4)
             }
-            Instruction::Input(dst) => dst.store(mem, input.pop_front().unwrap()),
-            Instruction::Output(src) => output.push(src.fetch(mem)),
-            Instruction::Exit => (),
-        }
-    }
-    fn size(self) -> usize {
-        match self {
-            Instruction::Add(_, _, _) => 4,
-            Instruction::Mul(_, _, _) => 4,
-            Instruction::Input(_) => 2,
-            Instruction::Output(_) => 2,
-            Instruction::Exit => 1,
+            Instruction::Input(dst) => {
+                dst.store(mem, input.pop_front().unwrap());
+                NextPC::Relative(2)
+            }
+            Instruction::Output(src) => {
+                output.push(src.fetch(mem));
+                NextPC::Relative(2)
+            }
+            Instruction::JumpIfTrue(src, dst) => {
+                if src.fetch(mem) != 0 {
+                    NextPC::Absolute(dst.fetch(mem))
+                } else {
+                    NextPC::Relative(3)
+                }
+            }
+            Instruction::JumpIfFalse(src, dst) => {
+                if src.fetch(mem) == 0 {
+                    NextPC::Absolute(dst.fetch(mem))
+                } else {
+                    NextPC::Relative(3)
+                }
+            }
+            Instruction::LessThan(a, b, dst) => {
+                dst.store(mem, bool_to_int(a.fetch(mem) < b.fetch(mem)));
+                NextPC::Relative(4)
+            }
+            Instruction::Equals(a, b, dst) => {
+                dst.store(mem, bool_to_int(a.fetch(mem) == b.fetch(mem)));
+                NextPC::Relative(4)
+            }
+            Instruction::Exit => NextPC::Exit,
         }
     }
 }
