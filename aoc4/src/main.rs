@@ -3,7 +3,7 @@ fn main() {
 }
 
 fn valid(orig_n: &i32) -> bool {
-	let mut n = *orig_n;
+    let mut n = *orig_n;
     let mut dup_count = 0;
     let mut good_dup = false;
     let mut prev = 0;
