@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::fmt;
+
 
 struct MachineState {
     mem: Vec<i32>,
@@ -7,10 +9,19 @@ struct MachineState {
     output: Vec<i32>,
     instructions: HashMap<i32, Op>,
 }
+
+#[derive(Debug)]
 enum ParamType {
     S,
     D,
 }
+
+#[derive(Debug)]
+enum Mode {
+    Position,
+    Immediate,
+}
+
 enum NextPC {
     Relative,
     Absolute(i32),
@@ -21,11 +32,19 @@ use self::ParamType::*;
 
 type OpFn = fn(m: &mut MachineState, p: Vec<i32>) -> NextPC;
 
+
 struct Op {
     name: String,
     params: Vec<ParamType>,
     run: OpFn,
 }
+
+impl fmt::Debug for Op {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Op {{ {} {:?} }}", self.name, self.params)
+    }
+}
+
 
 impl MachineState {
     fn run(&mut self) {
@@ -43,46 +62,23 @@ impl MachineState {
     fn decode(&self, pc: usize) -> (OpFn, Vec<i32>, usize) {
         let (opcode, modes) = unpack(self.mem[pc]);
         let i = &self.instructions[&opcode];
+		//println!("mem[{}] = {} => {:?}{:?}, modes:{:?}", pc, self.mem[pc], i.name, i.params, modes);
         let mut params = Vec::new();
         for (n, p) in i.params.iter().enumerate() {
             let v = self.mem[pc + 1 + n];
-            match modes[n] {
-                Mode::Position => {
-                    params.push(match p {
-                        S => self.mem[v as usize],
-                        D => v,
-                    });
-                }
-                Mode::Immediate => {
-                    params.push(match p {
-                        S => v,
-                        D => panic!("immediate dst {} @ {}", self.mem[pc], pc),
-                    });
-                }
-            }
+			//println!("mem[{}]={}", pc+1+n, v);
+			params.push(
+				match (&modes[n],p) {
+					(Mode::Position,S)=>self.mem[v as usize],
+					(Mode::Position,D)=>v,
+					(Mode::Immediate,S)=>v,
+					(Mode::Immediate,D)=> panic!("immediate dst {} @ {}, {:?}", self.mem[pc], pc, i),
+				}
+			);
         }
-        println!("{},{:?}", i.name, params);
+        //println!("{},{:?}", i.name, params);
         return (i.run, params, i.params.len() + 1);
     }
-}
-
-fn main() {
-    let mut state = MachineState {
-        mem: PROG5.to_vec(),
-        input: VecDeque::new(),
-        output: Vec::new(),
-        instructions: HashMap::new(),
-    };
-
-    init_instructions(&mut state.instructions);
-    state.input.push_back(5);
-    state.run();
-    println!("{:?}", state.output);
-}
-
-enum Mode {
-    Position,
-    Immediate,
 }
 
 fn unpack(mut i: i32) -> (i32, Vec<Mode>) {
@@ -98,6 +94,23 @@ fn unpack(mut i: i32) -> (i32, Vec<Mode>) {
     }
     (opcode, modes)
 }
+
+
+fn main() {
+    let mut state = MachineState {
+        mem: PROG5.to_vec(),
+        input: VecDeque::new(),
+        output: Vec::new(),
+        instructions: HashMap::new(),
+    };
+
+    init_instructions(&mut state.instructions);
+    state.input.push_back(5);
+    state.run();
+    println!("{:?}", state.output);
+}
+
+
 
 fn ipop(i: &mut i32, n: i32) -> i32 {
     let reply = (*i) % n;
@@ -178,7 +191,7 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         5,
         Op {
             name: "JumpIfTrue".to_string(),
-            params: vec![S, D],
+            params: vec![S, S],
             run: |_m, p| {
                 if let [s, d] = p[..] {
                     if s != 0 {
@@ -196,7 +209,7 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         6,
         Op {
             name: "JumpIfFalse".to_string(),
-            params: vec![S, D],
+            params: vec![S, S],
             run: |_m, p| {
                 if let [s, d] = p[..] {
                     if s == 0 {
@@ -241,7 +254,7 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         },
     );
     i.insert(
-        9,
+        99,
         Op {
             name: "Exit".to_string(),
             params: Vec::new(),
