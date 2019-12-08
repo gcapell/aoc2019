@@ -9,19 +9,17 @@ pub struct MachineState {
     instructions: HashMap<i32, Op>,
 }
 
-pub fn new(prog:&[i32])->MachineState {
-		let mut i = HashMap::new();
-		init_instructions(&mut i);
-		
-		MachineState {
-		        mem: prog.to_vec(),
-		        input: VecDeque::new(),
-		        output: Vec::new(),
-		        instructions: i,
-		    }
+pub fn new(prog: &[i32]) -> MachineState {
+    let mut i = HashMap::new();
+    init_instructions(&mut i);
 
+    MachineState {
+        mem: prog.to_vec(),
+        input: VecDeque::new(),
+        output: Vec::new(),
+        instructions: i,
+    }
 }
-
 
 #[derive(Debug)]
 enum ParamType {
@@ -45,7 +43,6 @@ use self::ParamType::*;
 
 type OpFn = fn(m: &mut MachineState, p: Vec<i32>) -> NextPC;
 
-
 struct Op {
     name: String,
     params: Vec<ParamType>,
@@ -66,7 +63,10 @@ impl MachineState {
             match func(self, params) {
                 NextPC::Relative => pc += size,
                 NextPC::Absolute(addr) => pc = addr as usize,
-                NextPC::Exit => {println!("exiting"); return},
+                NextPC::Exit => {
+                    println!("exiting");
+                    return;
+                }
             }
         }
     }
@@ -74,19 +74,17 @@ impl MachineState {
     fn decode(&self, pc: usize) -> (OpFn, Vec<i32>, usize) {
         let (opcode, modes) = unpack(self.mem[pc]);
         let i = &self.instructions[&opcode];
-		//println!("mem[{}] = {} => {:?}{:?}, modes:{:?}", pc, self.mem[pc], i.name, i.params, modes);
+        //println!("mem[{}] = {} => {:?}{:?}, modes:{:?}", pc, self.mem[pc], i.name, i.params, modes);
         let mut params = Vec::new();
         for (n, p) in i.params.iter().enumerate() {
             let v = self.mem[pc + 1 + n];
-			//println!("mem[{}]={}", pc+1+n, v);
-			params.push(
-				match (&modes[n],p) {
-					(Mode::Position,S)=>self.mem[v as usize],
-					(Mode::Position,D)=>v,
-					(Mode::Immediate,S)=>v,
-					(Mode::Immediate,D)=> panic!("immediate dst {} @ {}, {:?}", self.mem[pc], pc, i),
-				}
-			);
+            //println!("mem[{}]={}", pc+1+n, v);
+            params.push(match (&modes[n], p) {
+                (Mode::Position, S) => self.mem[v as usize],
+                (Mode::Position, D) => v,
+                (Mode::Immediate, S) => v,
+                (Mode::Immediate, D) => panic!("immediate dst {} @ {}, {:?}", self.mem[pc], pc, i),
+            });
         }
         //println!("{},{:?}", i.name, params);
         return (i.run, params, i.params.len() + 1);
