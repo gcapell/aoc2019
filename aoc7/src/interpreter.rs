@@ -7,6 +7,7 @@ pub struct MachineState {
     pub input: VecDeque<i32>,
     pub output: Vec<i32>,
     instructions: HashMap<i32, Op>,
+    pc: usize,
 }
 
 pub fn new(prog: &[i32]) -> MachineState {
@@ -18,6 +19,7 @@ pub fn new(prog: &[i32]) -> MachineState {
         input: VecDeque::new(),
         output: Vec::new(),
         instructions: i,
+        pc: 0,
     }
 }
 
@@ -56,37 +58,40 @@ impl fmt::Debug for Op {
 }
 
 impl MachineState {
+    pub fn set_prog(&mut self, prog: &[i32]) {
+        self.pc = 0;
+        self.mem = prog.to_vec();
+    }
+
     pub fn run(&mut self) {
-        let mut pc = 0;
         loop {
-            let (func, params, size) = self.decode(pc);
+            let (func, params, size) = self.decode();
             match func(self, params) {
-                NextPC::Relative => pc += size,
-                NextPC::Absolute(addr) => pc = addr as usize,
-                NextPC::Exit => {
-                    println!("exiting");
-                    return;
-                }
+                NextPC::Relative => self.pc += size,
+                NextPC::Absolute(addr) => self.pc = addr as usize,
+                NextPC::Exit => return,
             }
         }
     }
 
-    fn decode(&self, pc: usize) -> (OpFn, Vec<i32>, usize) {
-        let (opcode, modes) = unpack(self.mem[pc]);
+    fn decode(&self) -> (OpFn, Vec<i32>, usize) {
+        let (opcode, modes) = unpack(self.mem[self.pc]);
         let i = &self.instructions[&opcode];
         //println!("mem[{}] = {} => {:?}{:?}, modes:{:?}", pc, self.mem[pc], i.name, i.params, modes);
         let mut params = Vec::new();
         for (n, p) in i.params.iter().enumerate() {
-            let v = self.mem[pc + 1 + n];
+            let v = self.mem[self.pc + 1 + n];
             //println!("mem[{}]={}", pc+1+n, v);
             params.push(match (&modes[n], p) {
                 (Mode::Position, S) => self.mem[v as usize],
                 (Mode::Position, D) => v,
                 (Mode::Immediate, S) => v,
-                (Mode::Immediate, D) => panic!("immediate dst {} @ {}, {:?}", self.mem[pc], pc, i),
+                (Mode::Immediate, D) => {
+                    panic!("immediate dst {} @ {}, {:?}", self.mem[self.pc], self.pc, i)
+                }
             });
         }
-        //println!("{},{:?}", i.name, params);
+        //println!("pc:{}, {},{:?}", self.pc, i.name, params);
         return (i.run, params, i.params.len() + 1);
     }
 }
@@ -156,7 +161,9 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
             params: vec![D],
             run: |m, p| {
                 if let [d] = p[..] {
-                    m.mem[d as usize] = m.input.pop_front().unwrap();
+                    let val = m.input.pop_front().unwrap();
+                    m.mem[d as usize] = val;
+                    //println!("mem[{}] = {}", d, val);
                     NextPC::Relative
                 } else {
                     panic!()
