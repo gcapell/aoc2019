@@ -35,6 +35,20 @@ fn amplify(interpreter: &mut interpreter::MachineState, prog: &[i32], phases: &[
     val
 }
 
+fn feedback_amplify(prog:&[i32], seq:&[i32]) -> i32 {
+	let i = Vec::New();
+	let o = Vec::New();
+	let machines = seq.iter().map(|s|{
+		let m = interpreter::MachineState::new();
+		i.push_back(s);
+		match m.run(i,o){
+			NeedsInput=>(),
+			Exit=>panic!("unexpected exit init feedback_amplify")
+		}
+		m
+		}).collect();
+	
+}
 #[test]
 fn test_feedback_amplify() {
     let prog: &[i32] = &[
