@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt;
 
+#[derive(Debug)]
 pub struct MachineState {
     mem: Vec<i32>,
     instructions: HashMap<i32, Op>,
@@ -35,6 +36,7 @@ enum NextPC {
     Relative,
     Absolute(i32),
     Exit,
+    NeedsInput,
 }
 
 use self::ParamType::*;
@@ -54,10 +56,26 @@ impl fmt::Debug for Op {
     }
 }
 
+pub enum StopReason {
+    NeedsInput,
+    Exit,
+}
+
 impl MachineState {
     pub fn set_prog(&mut self, prog: &[i32]) {
         self.pc = 0;
         self.mem = prog.to_vec();
+    }
+    pub fn run_until_input(&mut self, i: &mut VecDeque<i32>, o: &mut VecDeque<i32>) -> StopReason {
+        loop {
+            let (func, params, size) = self.decode();
+            match func(self, params, i, o) {
+                NextPC::Relative => self.pc += size,
+                NextPC::Absolute(addr) => self.pc = addr as usize,
+                NextPC::Exit => return StopReason::Exit,
+                NextPC::NeedsInput => return StopReason::NeedsInput,
+            }
+        }
     }
 
     pub fn run(&mut self, i: &mut VecDeque<i32>, o: &mut VecDeque<i32>) {
@@ -67,6 +85,7 @@ impl MachineState {
                 NextPC::Relative => self.pc += size,
                 NextPC::Absolute(addr) => self.pc = addr as usize,
                 NextPC::Exit => return,
+                NextPC::NeedsInput => panic!("needs input"),
             }
         }
     }
@@ -158,10 +177,14 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
             params: vec![D],
             run: |m, p, i, _o| {
                 if let [d] = p[..] {
-                    let val = i.pop_front().unwrap();
-                    m.mem[d as usize] = val;
-                    //println!("mem[{}] = {}", d, val);
-                    NextPC::Relative
+                    match i.pop_front() {
+                        Some(val) => {
+                            m.mem[d as usize] = val;
+                            //println!("mem[{}] = {}", d, val);
+                            NextPC::Relative
+                        }
+                        None => NextPC::NeedsInput,
+                    }
                 } else {
                     panic!()
                 }
@@ -175,6 +198,7 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
             params: vec![S],
             run: |_m, p, _i, o| {
                 if let [s] = p[..] {
+                    println!("output {}", s);
                     o.push_back(s);
                     NextPC::Relative
                 } else {
