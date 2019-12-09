@@ -39,7 +39,8 @@ enum NextPC {
 
 use self::ParamType::*;
 
-type OpFn = fn(m: &mut MachineState, p: Vec<i32>, i: &mut VecDeque<i32>, o: &mut VecDeque<i32>) -> NextPC;
+type OpFn =
+    fn(m: &mut MachineState, p: Vec<i32>, i: &mut VecDeque<i32>, o: &mut VecDeque<i32>) -> NextPC;
 
 struct Op {
     name: String,
@@ -59,7 +60,7 @@ impl MachineState {
         self.mem = prog.to_vec();
     }
 
-    pub fn run(&mut self,  i:&mut VecDeque<i32>,  o: &mut VecDeque<i32>) {
+    pub fn run(&mut self, i: &mut VecDeque<i32>, o: &mut VecDeque<i32>) {
         loop {
             let (func, params, size) = self.decode();
             match func(self, params, i, o) {
