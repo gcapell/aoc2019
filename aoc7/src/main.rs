@@ -1,4 +1,5 @@
 mod interpreter;
+use interpreter::Signal::*;
 use permutohedron::LexicalPermutation;
 use std::collections::VecDeque;
 
@@ -35,20 +36,41 @@ fn amplify(interpreter: &mut interpreter::MachineState, prog: &[i32], phases: &[
     val
 }
 
-fn feedback_amplify(prog:&[i32], seq:&[i32]) -> i32 {
-	let i = Vec::New();
-	let o = Vec::New();
-	let machines = seq.iter().map(|s|{
-		let m = interpreter::MachineState::new();
-		i.push_back(s);
-		match m.run(i,o){
-			NeedsInput=>(),
-			Exit=>panic!("unexpected exit init feedback_amplify")
-		}
-		m
-		}).collect();
-	
+fn feedback_amplify(prog: &[i32], seq: &[i32]) -> i32 {
+    let mut i = VecDeque::new();
+    let mut o = VecDeque::new();
+    let mut machines: Vec<interpreter::MachineState> = seq
+        .iter()
+        .map(|s| {
+            let mut m = interpreter::new(prog);
+            i.push_back(*s);
+            match m.run(&mut i, &mut o) {
+                NeedsInput => (),
+                Exit => panic!("unexpected exit init feedback_amplify"),
+            }
+            m
+        })
+        .collect();
+
+    i.push_back(0);
+    assert_eq!(o.len(), 0, "banana");
+    let last = machines.len() - 1;
+    loop {
+        for (n, m) in machines.iter_mut().enumerate() {
+            assert_eq!(i.len(), 1);
+            assert_eq!(o.len(), 0);
+            let sig = m.run(&mut i, &mut o);
+            assert_eq!(o.len(), 1);
+            let val = o.pop_front().unwrap();
+            println!("machine {}, output {}", n, val);
+            i.push_back(val);
+            if m.halted && n == last {
+                return val;
+            }
+        }
+    }
 }
+
 #[test]
 fn test_feedback_amplify() {
     let prog: &[i32] = &[
@@ -56,7 +78,7 @@ fn test_feedback_amplify() {
         1005, 28, 6, 99, 0, 0, 5,
     ];
     let seq: &[i32] = &[9, 8, 7, 6, 5];
-    //assert_eq!(feedback_amplify(prog, seq), 139629729);
+    assert_eq!(feedback_amplify(prog, seq), 139629729);
 }
 
 #[test]
