@@ -4,8 +4,6 @@ use std::fmt;
 
 pub struct MachineState {
     mem: Vec<i32>,
-    pub input: VecDeque<i32>,
-    pub output: Vec<i32>,
     instructions: HashMap<i32, Op>,
     pc: usize,
 }
@@ -16,8 +14,6 @@ pub fn new(prog: &[i32]) -> MachineState {
 
     MachineState {
         mem: prog.to_vec(),
-        input: VecDeque::new(),
-        output: Vec::new(),
         instructions: i,
         pc: 0,
     }
@@ -43,7 +39,7 @@ enum NextPC {
 
 use self::ParamType::*;
 
-type OpFn = fn(m: &mut MachineState, p: Vec<i32>) -> NextPC;
+type OpFn = fn(m: &mut MachineState, p: Vec<i32>, i: &mut VecDeque<i32>, o: &mut VecDeque<i32>) -> NextPC;
 
 struct Op {
     name: String,
@@ -63,10 +59,10 @@ impl MachineState {
         self.mem = prog.to_vec();
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self,  i:&mut VecDeque<i32>,  o: &mut VecDeque<i32>) {
         loop {
             let (func, params, size) = self.decode();
-            match func(self, params) {
+            match func(self, params, i, o) {
                 NextPC::Relative => self.pc += size,
                 NextPC::Absolute(addr) => self.pc = addr as usize,
                 NextPC::Exit => return,
@@ -129,7 +125,7 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         Op {
             name: "Add".to_string(),
             params: vec![S, S, D],
-            run: |m, p| {
+            run: |m, p, _i, _o| {
                 if let [s1, s2, d] = p[..] {
                     m.mem[d as usize] = s1 + s2;
                     NextPC::Relative
@@ -144,7 +140,7 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         Op {
             name: "Mul".to_string(),
             params: vec![S, S, D],
-            run: |m, p| {
+            run: |m, p, _i, _o| {
                 if let [s1, s2, d] = p[..] {
                     m.mem[d as usize] = s1 * s2;
                     NextPC::Relative
@@ -159,9 +155,9 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         Op {
             name: "Input".to_string(),
             params: vec![D],
-            run: |m, p| {
+            run: |m, p, i, _o| {
                 if let [d] = p[..] {
-                    let val = m.input.pop_front().unwrap();
+                    let val = i.pop_front().unwrap();
                     m.mem[d as usize] = val;
                     //println!("mem[{}] = {}", d, val);
                     NextPC::Relative
@@ -176,9 +172,9 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         Op {
             name: "Output".to_string(),
             params: vec![S],
-            run: |m, p| {
+            run: |_m, p, _i, o| {
                 if let [s] = p[..] {
-                    m.output.push(s);
+                    o.push_back(s);
                     NextPC::Relative
                 } else {
                     panic!()
@@ -191,7 +187,7 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         Op {
             name: "JumpIfTrue".to_string(),
             params: vec![S, S],
-            run: |_m, p| {
+            run: |_m, p, _i, _o| {
                 if let [s, d] = p[..] {
                     if s != 0 {
                         NextPC::Absolute(d)
@@ -209,7 +205,7 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         Op {
             name: "JumpIfFalse".to_string(),
             params: vec![S, S],
-            run: |_m, p| {
+            run: |_m, p, _i, _o| {
                 if let [s, d] = p[..] {
                     if s == 0 {
                         NextPC::Absolute(d)
@@ -227,7 +223,7 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         Op {
             name: "LessThan".to_string(),
             params: vec![S, S, D],
-            run: |m, p| {
+            run: |m, p, _i, _o| {
                 if let [a, b, d] = p[..] {
                     m.mem[d as usize] = bool_to_int(a < b);
                     NextPC::Relative
@@ -242,7 +238,7 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         Op {
             name: "Equals".to_string(),
             params: vec![S, S, D],
-            run: |m, p| {
+            run: |m, p, _i, _o| {
                 if let [a, b, d] = p[..] {
                     m.mem[d as usize] = bool_to_int(a == b);
                     NextPC::Relative
@@ -257,7 +253,7 @@ fn init_instructions(i: &mut HashMap<i32, Op>) {
         Op {
             name: "Exit".to_string(),
             params: Vec::new(),
-            run: |_m, _p| NextPC::Exit,
+            run: |_m, _p, _i, _o| NextPC::Exit,
         },
     );
 }

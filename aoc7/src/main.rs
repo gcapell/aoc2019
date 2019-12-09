@@ -1,5 +1,6 @@
 mod interpreter;
 use permutohedron::LexicalPermutation;
+use std::collections::VecDeque;
 
 fn main() {
     let mut i = interpreter::new(PROG7);
@@ -20,16 +21,18 @@ fn max_amplify(i: &mut interpreter::MachineState, prog: &[i32]) -> i32 {
     max
 }
 
-fn amplify(i: &mut interpreter::MachineState, prog: &[i32], phases: &[i32]) -> i32 {
-    let mut input = 0;
+fn amplify(interpreter: &mut interpreter::MachineState, prog: &[i32], phases: &[i32]) -> i32 {
+    let mut val = 0;
+    let mut input = VecDeque::new();
+    let mut output = VecDeque::new();
     for s in phases {
-        i.set_prog(prog);
-        i.input.push_back(*s);
-        i.input.push_back(input);
-        i.run();
-        input = i.output.pop().unwrap();
+        interpreter.set_prog(prog);
+        input.push_back(*s);
+        input.push_back(val);
+        interpreter.run(&mut input, &mut output);
+        val = output.pop_front().unwrap()
     }
-    input
+    val
 }
 
 #[test]
