@@ -3,12 +3,13 @@ package main
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 )
 
 func main() {
-	cost(reactions)
+	fmt.Println(cost(reactions))
 }
 
 type reagent struct {
@@ -31,17 +32,26 @@ func cost(s string) int {
 	if sorted[0].name != "FUEL" {
 		log.Fatalf("%s != FUEL", sorted[0].name)
 	}
-	sorted[0].required = 1
+	return sort.Search(2*10264621, func(n int) bool {
+		return costN(sorted, ore, n) > 1000000000000
+	}) - 1
+}
+
+func costN(sorted []*node, ore *node, n int) int {
+	for _, n := range sorted {
+		n.required = 0
+	}
+	sorted[0].required = n
 
 	for _, n := range sorted {
 		propagateRequirements(n)
 	}
-	dot(ore, "", 0, make(map[string]bool))
+	// dot(ore, "", 0, make(map[string]bool))
+	// fmt.Println("costN", n, ore.required)
 	return ore.required
 }
 
 func propagateRequirements(n *node) {
-	fmt.Printf("prop(%s)\n", n.name)
 	for _, o := range n.outputs {
 		units := divRoundUp(o.n.required, o.n.produced)
 		n.required += units * o.required
