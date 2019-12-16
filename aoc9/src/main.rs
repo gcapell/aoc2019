@@ -60,10 +60,12 @@ static TEST3: &[i32] = &[
 
 #[test]
 fn test_copy() {
-	let prog = &[109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99];
-	let mut i = interpreter::new(prog);
-	let mut output = VecDeque::new();
-	let mut input = VecDeque::new();
-	i.run(&mut input, &mut output);
-	assert_eq!(output, prog);
+    let prog = &[
+        109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+    ];
+    let mut i = interpreter::new(prog);
+    let mut output = VecDeque::new();
+    let mut input = VecDeque::new();
+    i.run(&mut input, &mut output);
+    assert_eq!(output, prog);
 }

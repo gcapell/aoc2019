@@ -1,19 +1,22 @@
+use std::collections::HashMap;
 use std::collections::VecDeque;
 
 #[derive(Debug)]
 pub struct MachineState {
     mem: Vec<i32>,
     pc: usize,
-	rbase: usize,
+    rbase: i32,
     pub halted: bool,
+    extended_mem: HashMap<i32, i32>,
 }
 
 pub fn new(prog: &[i32]) -> MachineState {
     MachineState {
         mem: prog.to_vec(),
         pc: 0,
-		rbase: 0,
+        rbase: 0,
         halted: false,
+        extended_mem: HashMap::new(),
     }
 }
 
@@ -25,7 +28,7 @@ pub enum Signal {
 impl MachineState {
     pub fn set_prog(&mut self, prog: &[i32]) {
         self.pc = 0;
-		self.rbase = 0;
+        self.rbase = 0;
         self.halted = false;
         self.mem = prog.to_vec();
     }
@@ -35,23 +38,23 @@ impl MachineState {
         assert_eq!(o.len(), 0);
 
         loop {
-			let pc = self.pc;
+            let pc = self.pc;
             let (op, modes) = self.next_instruction();
-			println!("{} op:{}, modes:{:?}", pc, op, modes);
+            println!("{} op:{}, modes:{:?}", pc, op, modes);
             match op {
                 1 => {
                     let (s1, s2, d) = self.params3(modes, S, S, D);
-                    self.mem[d as usize] = s1 + s2;
+                    self.mem_set(d, s1 + s2);
                 }
                 2 => {
                     let (s1, s2, d) = self.params3(modes, S, S, D);
-                    self.mem[d as usize] = s1 * s2;
+                    self.mem_set(d, s1 * s2);
                 }
                 3 => {
                     let d = self.params1(modes, D);
                     match i.pop_front() {
                         Some(val) => {
-                            self.mem[d as usize] = val;
+                            self.mem_set(d, val);
                             //println!("mem[{}] = {}", d, val);
                         }
                         None => return Signal::NeedsInput,
@@ -75,17 +78,18 @@ impl MachineState {
                 }
                 7 => {
                     let (a, b, d) = self.params3(modes, S, S, D);
-                    self.mem[d as usize] = bool_to_int(a < b);
+                    self.mem_set(d, bool_to_int(a < b));
                 }
                 8 => {
                     let (a, b, d) = self.params3(modes, S, S, D);
-                    self.mem[d as usize] = bool_to_int(a == b);
+                    self.mem_set(d, bool_to_int(a == b));
                 }
-				9 => {
-					let delta = self.params1(modes, S) as usize;
-					println!("rbase {} += {}", self.rbase, delta);
-					self.rbase += delta;
-				}
+                9 => {
+                    let before = self.rbase;
+                    let p = self.params1(modes, S);
+                    self.rbase += p;
+                    println!("rbase {} + {} -> {}", before, p, self.rbase);
+                }
                 99 => {
                     self.halted = true;
                     return Signal::Exit;
@@ -116,13 +120,28 @@ impl MachineState {
     fn params1(&mut self, m: ModeTuple, a: ParamType) -> i32 {
         self.param(m.0, a)
     }
+
+    fn mem_get(&mut self, p: i32) -> i32 {
+        if p < self.mem.len() as i32 {
+            return self.mem[p as usize];
+        }
+        *self.extended_mem.get(&p).unwrap_or(&0)
+    }
+    fn mem_set(&mut self, k: i32, v: i32) {
+        if k < self.mem.len() as i32 {
+            self.mem[k as usize] = v;
+            return;
+        }
+        self.extended_mem.insert(k, v);
+    }
+
     fn param(&mut self, mode: i32, pt: ParamType) -> i32 {
         let v = self.mem[self.pc];
         self.pc += 1;
         match (pt, mode) {
-            (S, 0) => self.mem[v as usize],
+            (S, 0) => self.mem_get(v),
             (S, 1) => v,
-			(S, 2) => self.mem[v as usize + self.rbase],
+            (S, 2) => self.mem_get(v + self.rbase),
             (D, 0) => v,
             (D, _) => panic!("mode {} for Destination", mode),
             (S, _) => panic!("unknown mode {} for Src", mode),
