@@ -12,6 +12,33 @@ pub struct MachineState {
     extended_mem: HashMap<Word, Word>,
 }
 
+pub struct Channel {
+    m: MachineState,
+    i: VecDeque<Word>,
+    o: VecDeque<Word>,
+}
+
+pub fn new_channel(prog: &[Word]) -> Channel {
+    Channel {
+        m: new(prog),
+        i: VecDeque::new(),
+        o: VecDeque::new(),
+    }
+}
+
+impl Channel {
+    pub fn send(&mut self, n: Word) -> Word {
+        assert!(self.i.is_empty());
+        assert!(self.o.is_empty());
+        self.i.push_back(n);
+        self.m.run(&mut self.i, &mut self.o);
+        assert_eq!(self.o.len(), 1);
+        let reply = self.o.pop_front().unwrap();
+        assert!(self.o.is_empty());
+        reply
+    }
+}
+
 pub fn new(prog: &[Word]) -> MachineState {
     MachineState {
         mem: prog.to_vec(),
@@ -19,18 +46,6 @@ pub fn new(prog: &[Word]) -> MachineState {
         rbase: 0,
         halted: false,
         extended_mem: HashMap::new(),
-    }
-}
-
-pub fn single_input(prog: &[Word], i: Word) -> VecDeque<Word> {
-    let mut m = new(prog);
-
-    let mut input = VecDeque::new();
-    let mut output = VecDeque::new();
-    input.push_back(i);
-    match m.run(&mut input, &mut output) {
-        Signal::NeedsInput => panic!("input"),
-        Signal::Exit => output,
     }
 }
 
@@ -58,12 +73,19 @@ impl MachineState {
                 3 => {
                     let d = self.params1(modes, D);
                     match i.pop_front() {
-                        Some(val) => self.mem_set(d, val),
-                        None => return Signal::NeedsInput,
+                        Some(val) => {
+                            println!("<- {}", val);
+                            self.mem_set(d, val)
+                        }
+                        None => {
+                            self.pc -= 2;
+                            return Signal::NeedsInput;
+                        }
                     }
                 }
                 4 => {
                     let s = self.params1(modes, S);
+                    println!("-> {}", s);
                     o.push_back(s);
                 }
                 5 => {
