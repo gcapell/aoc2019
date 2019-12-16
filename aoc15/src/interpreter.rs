@@ -33,9 +33,7 @@ impl Channel {
         self.i.push_back(n);
         self.m.run(&mut self.i, &mut self.o);
         assert_eq!(self.o.len(), 1);
-        let reply = self.o.pop_front().unwrap();
-        assert!(self.o.is_empty());
-        reply
+        self.o.pop_front().unwrap()
     }
 }
 
