@@ -1,16 +1,18 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
+pub type Word = i64;
+
 #[derive(Debug)]
 pub struct MachineState {
-    mem: Vec<i32>,
+    mem: Vec<Word>,
     pc: usize,
-    rbase: i32,
+    rbase: Word,
     pub halted: bool,
-    extended_mem: HashMap<i32, i32>,
+    extended_mem: HashMap<Word, Word>,
 }
 
-pub fn new(prog: &[i32]) -> MachineState {
+pub fn new(prog: &[Word]) -> MachineState {
     MachineState {
         mem: prog.to_vec(),
         pc: 0,
@@ -26,14 +28,14 @@ pub enum Signal {
 }
 
 impl MachineState {
-    pub fn set_prog(&mut self, prog: &[i32]) {
+    pub fn set_prog(&mut self, prog: &[Word]) {
         self.pc = 0;
         self.rbase = 0;
         self.halted = false;
         self.mem = prog.to_vec();
     }
 
-    pub fn run(&mut self, i: &mut VecDeque<i32>, o: &mut VecDeque<i32>) -> Signal {
+    pub fn run(&mut self, i: &mut VecDeque<Word>, o: &mut VecDeque<Word>) -> Signal {
         assert!(!self.halted);
         assert_eq!(o.len(), 0);
 
@@ -99,7 +101,7 @@ impl MachineState {
         }
     }
 
-    fn next_instruction(&mut self) -> (i32, ModeTuple) {
+    fn next_instruction(&mut self) -> (Word, ModeTuple) {
         let (opcode, modes) = unpack(self.mem[self.pc]);
         self.pc += 1;
         (opcode, modes)
@@ -111,31 +113,31 @@ impl MachineState {
         a: ParamType,
         b: ParamType,
         c: ParamType,
-    ) -> (i32, i32, i32) {
+    ) -> (Word, Word, Word) {
         (self.param(m.0, a), self.param(m.1, b), self.param(m.2, c))
     }
-    fn params2(&mut self, m: ModeTuple, a: ParamType, b: ParamType) -> (i32, i32) {
+    fn params2(&mut self, m: ModeTuple, a: ParamType, b: ParamType) -> (Word, Word) {
         (self.param(m.0, a), self.param(m.1, b))
     }
-    fn params1(&mut self, m: ModeTuple, a: ParamType) -> i32 {
+    fn params1(&mut self, m: ModeTuple, a: ParamType) -> Word {
         self.param(m.0, a)
     }
 
-    fn mem_get(&mut self, p: i32) -> i32 {
-        if p < self.mem.len() as i32 {
+    fn mem_get(&mut self, p: Word) -> Word {
+        if p < self.mem.len() as Word {
             return self.mem[p as usize];
         }
         *self.extended_mem.get(&p).unwrap_or(&0)
     }
-    fn mem_set(&mut self, k: i32, v: i32) {
-        if k < self.mem.len() as i32 {
+    fn mem_set(&mut self, k: Word, v: Word) {
+        if k < self.mem.len() as Word {
             self.mem[k as usize] = v;
             return;
         }
         self.extended_mem.insert(k, v);
     }
 
-    fn param(&mut self, mode: i32, pt: ParamType) -> i32 {
+    fn param(&mut self, mode: Mode, pt: ParamType) -> Word {
         let v = self.mem[self.pc];
         self.pc += 1;
         match (pt, mode) {
@@ -149,7 +151,8 @@ impl MachineState {
     }
 }
 
-type ModeTuple = (i32, i32, i32);
+type Mode = i8;
+type ModeTuple = (Mode, Mode, Mode);
 
 #[derive(Debug)]
 enum ParamType {
@@ -158,19 +161,22 @@ enum ParamType {
 }
 use self::ParamType::*;
 
-fn unpack(mut i: i32) -> (i32, ModeTuple) {
-    let opcode = ipop(&mut i, 100);
-    let modes = (ipop(&mut i, 10), ipop(&mut i, 10), ipop(&mut i, 10));
-    (opcode, modes)
+fn unpack(mut i: Word) -> (Word, ModeTuple) {
+    let g = &mut i;
+    (ipop(g, 100), (imode(g), imode(g), imode(g)))
 }
 
-fn ipop(i: &mut i32, n: i32) -> i32 {
+fn imode(i: &mut Word) -> Mode {
+    ipop(i, 10) as Mode
+}
+
+fn ipop(i: &mut Word, n: Word) -> Word {
     let reply = (*i) % n;
     (*i) /= n;
     reply
 }
 
-fn bool_to_int(a: bool) -> i32 {
+fn bool_to_int(a: bool) -> Word {
     if a {
         1
     } else {

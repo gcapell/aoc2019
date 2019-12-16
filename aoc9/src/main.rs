@@ -1,4 +1,5 @@
 mod interpreter;
+use interpreter::Word;
 use permutohedron::LexicalPermutation;
 use std::collections::VecDeque;
 
@@ -7,7 +8,7 @@ fn main() {
     println!("{}", max_amplify(&mut i, TEST1));
 }
 
-fn max_amplify(i: &mut interpreter::MachineState, prog: &[i32]) -> i32 {
+fn max_amplify(i: &mut interpreter::MachineState, prog: &[Word]) -> Word {
     let mut phases = vec![0, 1, 2, 3, 4];
     let mut ok = true;
     let mut max = 0;
@@ -21,7 +22,7 @@ fn max_amplify(i: &mut interpreter::MachineState, prog: &[i32]) -> i32 {
     max
 }
 
-fn amplify(interpreter: &mut interpreter::MachineState, prog: &[i32], phases: &[i32]) -> i32 {
+fn amplify(interpreter: &mut interpreter::MachineState, prog: &[Word], phases: &[Word]) -> Word {
     let mut val = 0;
     let mut input = VecDeque::new();
     let mut output = VecDeque::new();
@@ -45,15 +46,15 @@ fn test_max_amplify() {
     }
 }
 
-static TEST1: &[i32] = &[
+static TEST1: &[Word] = &[
     3, 15, 3, 16, 1002, 16, 10, 16, 1, 16, 15, 15, 4, 15, 99, 0, 0,
 ];
 
-static TEST2: &[i32] = &[
+static TEST2: &[Word] = &[
     3, 23, 3, 24, 1002, 24, 10, 24, 1002, 23, -1, 23, 101, 5, 23, 23, 1, 24, 23, 23, 4, 23, 99, 0,
     0,
 ];
-static TEST3: &[i32] = &[
+static TEST3: &[Word] = &[
     3, 31, 3, 32, 1002, 32, 10, 32, 1001, 31, -2, 31, 1007, 31, 0, 33, 1002, 33, 7, 33, 1, 33, 31,
     31, 1, 32, 31, 31, 4, 31, 99, 0, 0, 0,
 ];
@@ -63,9 +64,21 @@ fn test_copy() {
     let prog = &[
         109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
     ];
+    simple_output(prog, prog);
+}
+
+#[test]
+fn test_largenum() {
+    simple_output(
+        &[1102, 34915192, 34915192, 7, 4, 7, 99, 0],
+        &[1219070632396864],
+    );
+}
+
+fn simple_output(prog: &[Word], expected: &[Word]) {
     let mut i = interpreter::new(prog);
     let mut output = VecDeque::new();
     let mut input = VecDeque::new();
     i.run(&mut input, &mut output);
-    assert_eq!(output, prog);
+    assert_eq!(output, expected);
 }
