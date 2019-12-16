@@ -33,8 +33,11 @@ impl MachineState {
     pub fn run(&mut self, i: &mut VecDeque<i32>, o: &mut VecDeque<i32>) -> Signal {
         assert!(!self.halted);
         assert_eq!(o.len(), 0);
+
         loop {
+			let pc = self.pc;
             let (op, modes) = self.next_instruction();
+			println!("{} op:{}, modes:{:?}", pc, op, modes);
             match op {
                 1 => {
                     let (s1, s2, d) = self.params3(modes, S, S, D);
@@ -78,7 +81,11 @@ impl MachineState {
                     let (a, b, d) = self.params3(modes, S, S, D);
                     self.mem[d as usize] = bool_to_int(a == b);
                 }
-				9 => self.rbase += self.params1(modes, S) as usize,
+				9 => {
+					let delta = self.params1(modes, S) as usize;
+					println!("rbase {} += {}", self.rbase, delta);
+					self.rbase += delta;
+				}
                 99 => {
                     self.halted = true;
                     return Signal::Exit;
